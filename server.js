@@ -16,6 +16,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Global error handler for JSON parsing errors
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+    console.error("Bad JSON received:", err);
+    return res.status(400).json({ error: "Malformed JSON in request body" });
+  }
+  next();
+});
+
 // 🔹 Solana Configuration
 const SOLANA_RPC_URL = process.env.RPC_URL;
 const connection = new Connection(SOLANA_RPC_URL, "confirmed");
@@ -23,7 +32,9 @@ const TOKEN_ADDRESS = new PublicKey(process.env.TOKEN_ADDRESS);
 const SOL_WALLET = new PublicKey(process.env.SOL_WALLET);
 const EXCHANGE_RATE = 100000000;
 const MIN_PURCHASE_SOL = 0.1;
-const sellerKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY)));
+const sellerKeypair = Keypair.fromSecretKey(
+  Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY))
+);
 
 // ✅ Health Check
 app.get("/health", (req, res) => {
