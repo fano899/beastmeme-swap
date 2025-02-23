@@ -11,7 +11,7 @@ app.use(express.json());
 // 🔹 Solana Configuration
 const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"; // ✅ Use Mainnet or Devnet
 const connection = new Connection(SOLANA_RPC_URL);
-const BEAST_MEME_TOKEN_MINT = new PublicKey("YOUR_BEAST_MEME_TOKEN_MINT_ADDRESS"); // 🔹 Replace with your token mint address
+const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); // 🔹 Replace with your token mint address
 const EXCHANGE_RATE = 100000000; // 1 SOL = 100,000,000 BEAST MEME
 const MIN_PURCHASE_SOL = 0.1; // 🔹 Minimum 0.1 SOL purchase
 
