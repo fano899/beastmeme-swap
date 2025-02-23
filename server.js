@@ -7,22 +7,22 @@ const {
     PublicKey,
     Transaction,
     SystemProgram,
-    sendAndConfirmTransaction
+    sendAndConfirmTransaction,
 } = require("@solana/web3.js");
 
-// ✅ Initialize Express app
+// Initialize Express app
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // 🔹 Solana Configuration
-const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com";
-const connection = new Connection(SOLANA_RPC_URL, "finalized"); // Use "finalized" for higher reliability
-const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); 
+const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"; // ✅ Use Mainnet or Devnet
+const connection = new Connection(SOLANA_RPC_URL, "finalized"); // Faster finalization
+const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); // 🔹 Replace with your token mint address
 const EXCHANGE_RATE = 100000000; // 1 SOL = 100,000,000 BEAST MEME
-const MIN_PURCHASE_SOL = 0.1;
+const MIN_PURCHASE_SOL = 0.1; // 🔹 Minimum 0.1 SOL purchase
 
-// 🔹 Load Seller's Private Key from Environment
+// 🔹 Load the seller's private key from .env file
 const sellerKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY)));
 
 // ✅ Health Check
@@ -38,33 +38,39 @@ app.post("/pay", async (req, res) => {
             return res.status(400).json({ error: "Invalid sender or amount" });
         }
 
-        // 🔹 Enforce Minimum Purchase Amount
+        // 🔹 Enforce minimum purchase amount
         if (amount < MIN_PURCHASE_SOL) {
             return res.status(400).json({ error: `Minimum purchase amount is ${MIN_PURCHASE_SOL} SOL` });
         }
 
-        // 🔹 Calculate BEAST MEME Amount to Send
+        // 🔹 Calculate BEAST MEME amount to send
         const beastMemeAmount = amount * EXCHANGE_RATE;
 
-        // 🔹 Get Latest Blockhash to Avoid Expiry
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-
-        // 🔹 Create Transaction
-        const transaction = new Transaction({
-            recentBlockhash: blockhash,
-            lastValidBlockHeight: lastValidBlockHeight + 150 // Increase expiry buffer
-        }).add(
+        // 🔹 Create transaction to send BEAST MEME
+        const transaction = new Transaction().add(
             SystemProgram.transfer({
                 fromPubkey: sellerKeypair.publicKey,
                 toPubkey: new PublicKey(sender),
-                lamports: beastMemeAmount,
+                lamports: beastMemeAmount, // 🔹 Adjust for token decimals if needed
             })
         );
 
-        // 🔹 Sign and Send Transaction
-        const signature = await sendAndConfirmTransaction(connection, transaction, [sellerKeypair], {
-            commitment: "finalized"
-        });
+        // Fetch latest blockhash to prevent expiry issues
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("finalized");
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = sellerKeypair.publicKey;
+
+        // Send and confirm transaction with retry logic
+        const signature = await sendAndConfirmTransaction(
+            connection,
+            transaction,
+            [sellerKeypair],
+            {
+                commitment: "finalized",
+                preflightCommitment: "processed",
+                maxRetries: 3,
+            }
+        );
 
         res.json({ message: "Payment successful", transactionId: signature, amountReceived: beastMemeAmount });
 
@@ -74,7 +80,7 @@ app.post("/pay", async (req, res) => {
     }
 });
 
-// ✅ Start the Server
+// ✅ Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
