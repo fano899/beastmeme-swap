@@ -17,7 +17,7 @@ app.use(cors());
 app.use(express.json());
 
 // 🔹 Solana Configuration
-const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com";
+const SOLANA_RPC_URL = process.env.RPC_URL;
 const connection = new Connection(SOLANA_RPC_URL, "confirmed");
 const TOKEN_ADDRESS = new PublicKey(process.env.TOKEN_ADDRESS);
 const SOL_WALLET = new PublicKey(process.env.SOL_WALLET);
