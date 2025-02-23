@@ -1,14 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const {
-    Connection,
-    Keypair,
-    PublicKey,
-    Transaction,
-    SystemProgram,
-    sendAndConfirmTransaction,
-} = require("@solana/web3.js");
+const { Connection, Keypair, PublicKey, Transaction, SystemProgram, sendAndConfirmTransaction } = require("@solana/web3.js");
 
 // Initialize Express app
 const app = express();
@@ -17,13 +10,14 @@ app.use(express.json());
 
 // 🔹 Solana Configuration
 const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"; // ✅ Use Mainnet or Devnet
-const connection = new Connection(SOLANA_RPC_URL, "finalized"); // Faster finalization
-const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); // 🔹 Replace with your token mint address
+const connection = new Connection(SOLANA_RPC_URL);
+const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); // 🔹 BEAST MEME Token Mint Address
 const EXCHANGE_RATE = 100000000; // 1 SOL = 100,000,000 BEAST MEME
 const MIN_PURCHASE_SOL = 0.1; // 🔹 Minimum 0.1 SOL purchase
 
-// 🔹 Load the seller's private key from .env file
-const sellerKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY)));
+// 🔹 Load Wallets from Environment Variables
+const solWallet = new PublicKey(process.env.SOL_WALLET); // 🔹 Wallet that receives SOL payments
+const beastKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.BEAST_PRIVATE_KEY))); // 🔹 Wallet that sends BEAST MEME tokens
 
 // ✅ Health Check
 app.get("/health", (req, res) => {
@@ -46,32 +40,16 @@ app.post("/pay", async (req, res) => {
         // 🔹 Calculate BEAST MEME amount to send
         const beastMemeAmount = amount * EXCHANGE_RATE;
 
-        // 🔹 Create transaction to send BEAST MEME
+        // 🔹 Transfer BEAST MEME from beastKeypair wallet to buyer
         const transaction = new Transaction().add(
             SystemProgram.transfer({
-                fromPubkey: sellerKeypair.publicKey,
+                fromPubkey: beastKeypair.publicKey,
                 toPubkey: new PublicKey(sender),
-                lamports: beastMemeAmount, // 🔹 Adjust for token decimals if needed
+                lamports: beastMemeAmount, // 🔹 Adjust this for token decimals if needed
             })
         );
 
-        // Fetch latest blockhash to prevent expiry issues
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("finalized");
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = sellerKeypair.publicKey;
-
-        // Send and confirm transaction with retry logic
-        const signature = await sendAndConfirmTransaction(
-            connection,
-            transaction,
-            [sellerKeypair],
-            {
-                commitment: "finalized",
-                preflightCommitment: "processed",
-                maxRetries: 3,
-            }
-        );
-
+        const signature = await sendAndConfirmTransaction(connection, transaction, [beastKeypair]);
         res.json({ message: "Payment successful", transactionId: signature, amountReceived: beastMemeAmount });
 
     } catch (error) {
