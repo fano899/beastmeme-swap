@@ -1,7 +1,14 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { Connection, Keypair, PublicKey, Transaction, SystemProgram, sendAndConfirmTransaction } = require("@solana/web3.js");
+const {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+  sendAndConfirmTransaction
+} = require("@solana/web3.js");
+const { getOrCreateAssociatedTokenAccount, createTransferInstruction } = require("@solana/spl-token");
 
 // Initialize Express app
 const app = express();
@@ -11,7 +18,7 @@ app.use(express.json());
 // 🔹 Solana Configuration
 const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"; // ✅ Use Mainnet or Devnet
 const connection = new Connection(SOLANA_RPC_URL);
-const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); // 🔹 Replace with your token mint address
+const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); // ✅ Replace with your BEAST MEME token mint address
 const EXCHANGE_RATE = 100000000; // 1 SOL = 100,000,000 BEAST MEME
 const MIN_PURCHASE_SOL = 0.1; // 🔹 Minimum 0.1 SOL purchase
 
@@ -38,25 +45,36 @@ app.post("/pay", async (req, res) => {
 
         // 🔹 Calculate BEAST MEME amount to send
         const beastMemeAmount = amount * EXCHANGE_RATE;
+        const senderPublicKey = new PublicKey(sender);
 
-        // 🔹 Transfer BEAST MEME from seller wallet to buyer
-        const transaction = new Transaction().add(
-            SystemProgram.transfer({
-                fromPubkey: sellerKeypair.publicKey,
-                toPubkey: new PublicKey(sender),
-                lamports: beastMemeAmount, // 🔹 Adjust this for token decimals if needed
-            })
+        // 🔹 Get sender's associated token account
+        const senderTokenAccount = await getOrCreateAssociatedTokenAccount(
+            connection,
+            sellerKeypair,
+            BEAST_MEME_TOKEN_MINT,
+            senderPublicKey
         );
 
-        // 🔹 Set latest blockhash before signing
-        const { blockhash } = await connection.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
+        // 🔹 Get seller's associated token account
+        const sellerTokenAccount = await getOrCreateAssociatedTokenAccount(
+            connection,
+            sellerKeypair,
+            BEAST_MEME_TOKEN_MINT,
+            sellerKeypair.publicKey
+        );
 
-        // 🔹 Send and confirm transaction with finalized commitment
-        const signature = await sendAndConfirmTransaction(connection, transaction, [sellerKeypair], {
-            commitment: "finalized",
-        });
+        // 🔹 Create Token Transfer Instruction
+        const transferInstruction = createTransferInstruction(
+            sellerTokenAccount.address, // From (seller)
+            senderTokenAccount.address, // To (buyer)
+            sellerKeypair.publicKey,
+            beastMemeAmount
+        );
 
+        // 🔹 Send the transaction
+        const transaction = new Transaction().add(transferInstruction);
+        const signature = await sendAndConfirmTransaction(connection, transaction, [sellerKeypair]);
+        
         res.json({ message: "Payment successful", transactionId: signature, amountReceived: beastMemeAmount });
 
     } catch (error) {
