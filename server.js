@@ -48,7 +48,15 @@ app.post("/pay", async (req, res) => {
             })
         );
 
-        const signature = await sendAndConfirmTransaction(connection, transaction, [sellerKeypair]);
+        // 🔹 Set latest blockhash before signing
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+
+        // 🔹 Send and confirm transaction with finalized commitment
+        const signature = await sendAndConfirmTransaction(connection, transaction, [sellerKeypair], {
+            commitment: "finalized",
+        });
+
         res.json({ message: "Payment successful", transactionId: signature, amountReceived: beastMemeAmount });
 
     } catch (error) {
