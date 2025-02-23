@@ -30,6 +30,7 @@ const SOLANA_RPC_URL = process.env.RPC_URL;
 const connection = new Connection(SOLANA_RPC_URL, "confirmed");
 const TOKEN_ADDRESS = new PublicKey(process.env.TOKEN_ADDRESS);
 const SOL_WALLET = new PublicKey(process.env.SOL_WALLET);
+// Set the exchange rate so that 1 SOL equals 100,000,000 tokens
 const EXCHANGE_RATE = 100000000;
 const MIN_PURCHASE_SOL = 0.1;
 const sellerKeypair = Keypair.fromSecretKey(
@@ -72,7 +73,11 @@ app.post("/pay", async (req, res) => {
     if (!isPaid) {
       return res.status(400).json({ error: "SOL payment not found" });
     }
+    
+    // Calculate token amount directly:
+    // 1 SOL yields 100,000,000 tokens, so 0.1 SOL yields 10,000,000 tokens.
     const beastMemeAmount = amount * EXCHANGE_RATE;
+    
     const transaction = new Transaction().add(
       SystemProgram.transfer({
         fromPubkey: sellerKeypair.publicKey,
@@ -81,7 +86,11 @@ app.post("/pay", async (req, res) => {
       })
     );
     const signature = await sendAndConfirmTransaction(connection, transaction, [sellerKeypair]);
-    res.json({ message: "Payment successful", transactionId: signature, amountReceived: beastMemeAmount });
+    res.json({ 
+      message: "Payment successful", 
+      transactionId: signature,
+      amountReceived: beastMemeAmount 
+    });
   } catch (error) {
     console.error("Transaction failed:", error);
     res.status(500).json({ error: error.message });
