@@ -9,15 +9,15 @@ app.use(cors());
 app.use(express.json());
 
 // 🔹 Solana Configuration
-const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"; // ✅ Use Mainnet or Devnet
+const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com";
 const connection = new Connection(SOLANA_RPC_URL);
-const BEAST_MEME_TOKEN_MINT = new PublicKey("6Pp23Lbn2Dywh9dz6hEZcTyH6Tbq4B4JXXcD1eAwLdV8"); // 🔹 BEAST MEME Token Mint Address
+const BEAST_MEME_TOKEN_MINT = new PublicKey(process.env.TOKEN_ADDRESS); // 🔹 Use environment variable for the token mint address
 const EXCHANGE_RATE = 100000000; // 1 SOL = 100,000,000 BEAST MEME
-const MIN_PURCHASE_SOL = 0.1; // 🔹 Minimum 0.1 SOL purchase
+const MIN_PURCHASE_SOL = 0.1;
 
-// 🔹 Load Wallets from Environment Variables
-const solWallet = new PublicKey(process.env.SOL_WALLET); // 🔹 Wallet that receives SOL payments
-const beastKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.BEAST_PRIVATE_KEY))); // 🔹 Wallet that sends BEAST MEME tokens
+// 🔹 Wallets
+const solWallet = new PublicKey(process.env.SOL_WALLET); // Solana wallet for receiving SOL payments
+const beastKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.BEAST_PRIVATE_KEY))); // BEAST MEME wallet
 
 // ✅ Health Check
 app.get("/health", (req, res) => {
@@ -40,12 +40,12 @@ app.post("/pay", async (req, res) => {
         // 🔹 Calculate BEAST MEME amount to send
         const beastMemeAmount = amount * EXCHANGE_RATE;
 
-        // 🔹 Transfer BEAST MEME from beastKeypair wallet to buyer
+        // 🔹 Create transaction to send BEAST MEME
         const transaction = new Transaction().add(
             SystemProgram.transfer({
                 fromPubkey: beastKeypair.publicKey,
                 toPubkey: new PublicKey(sender),
-                lamports: beastMemeAmount, // 🔹 Adjust this for token decimals if needed
+                lamports: beastMemeAmount, // 🔹 Adjust if token decimals apply
             })
         );
 
