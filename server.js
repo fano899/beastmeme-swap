@@ -96,6 +96,8 @@ async function transferBeastTokens(sender, amount) {
 
 // Payment Route
 app.post("/pay", async (req, res) => {
+  console.log("Received request:", req.body); // Log the incoming request body
+  
   try {
     const { sender, amount } = req.body;
     if (!sender || !amount || isNaN(amount)) {
@@ -135,3 +137,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
