@@ -25,7 +25,7 @@ app.use((err, req, res, next) => {
   next();
 });
 
-// 🔹 Solana Configuration
+// 🔹 Solana Configuration (using Helius RPC URL)
 const SOLANA_RPC_URL = process.env.RPC_URL;
 const connection = new Connection(SOLANA_RPC_URL, "confirmed");
 const TOKEN_ADDRESS = new PublicKey(process.env.TOKEN_ADDRESS);
