@@ -33,8 +33,15 @@ const TOKEN_ADDRESS = new PublicKey(process.env.TOKEN_ADDRESS); // Your Beast To
 const SOL_WALLET = new PublicKey(process.env.SOL_WALLET); // Wallet to receive SOL
 const EXCHANGE_RATE = 100000000; // Token Conversion Rate (1 SOL = 100,000,000 Beast tokens)
 const MIN_PURCHASE_SOL = 0.1;
+
+// Solana wallet keypair (using SOL_PRIVATE_KEY)
 const sellerKeypair = Keypair.fromSecretKey(
-  Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY))
+  Uint8Array.from(JSON.parse(process.env.SOL_PRIVATE_KEY)) // Solana wallet's private key
+);
+
+// Beast token keypair (using PRIVATE_KEY)
+const beastKeypair = Keypair.fromSecretKey(
+  Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY)) // Beast token private key
 );
 
 // Health Check Route
@@ -77,7 +84,7 @@ async function transferBeastTokens(sender, amount) {
     ASSOCIATED_TOKEN_PROGRAM_ID,
     TOKEN_PROGRAM_ID,
     TOKEN_ADDRESS,
-    sellerKeypair.publicKey
+    sellerKeypair.publicKey // Sending tokens from Solana wallet
   );
 
   const transaction = new Transaction().add(
@@ -86,7 +93,7 @@ async function transferBeastTokens(sender, amount) {
       senderTokenAccount,
       recipientTokenAccount,
       sellerKeypair.publicKey,
-      [],
+      [], // No other signers needed
       amount
     )
   );
