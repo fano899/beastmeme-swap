@@ -52,53 +52,73 @@ app.get("/health", (req, res) => {
 // Verify SOL Payment
 async function verifySolPayment(sender, amount) {
   try {
+    console.log("Verifying payment for sender:", sender, "Amount:", amount);
+    
     const signatures = await connection.getSignaturesForAddress(SOL_WALLET, { limit: 10 });
+    
     for (let sig of signatures) {
       const transaction = await connection.getTransaction(sig.signature, { commitment: "confirmed" });
       if (transaction) {
+        console.log("Transaction found:", transaction.transaction.message);
+        
         const senderMatch = transaction.transaction.message.accountKeys[0].toString() === sender;
-        const transactionAmountSOL = transaction.transaction.message.instructions[0].lamports / 1000000000;  // Convert lamports to SOL
-        const amountMatch = Math.abs(transactionAmountSOL - amount) < 0.01;
+        const transactionAmountSOL = transaction.transaction.message.instructions[0].lamports / 1000000000; // Convert lamports to SOL
+        
+        const amountMatch = Math.abs(transactionAmountSOL - amount) < 0.01; // tolerance for floating-point comparison
         if (senderMatch && amountMatch) {
           return true;
         }
       }
     }
-    return false;
+    
+    throw new Error("SOL payment not found or amount does not match");
   } catch (error) {
-    console.error("Error verifying SOL payment:", error);
-    return false;
+    console.error("Error verifying SOL payment:", error.message);
+    throw new Error(`Verification failed: ${error.message}`);
   }
 }
 
 // Token Transfer Logic (Beast Token Transfer)
 async function transferBeastTokens(sender, amount) {
-  const senderTokenAccount = await Token.getAssociatedTokenAddress(
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-    TOKEN_ADDRESS,
-    sender
-  );
-
-  const recipientTokenAccount = await Token.getAssociatedTokenAddress(
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-    TOKEN_ADDRESS,
-    sellerKeypair.publicKey // Sending tokens from Solana wallet
-  );
-
-  const transaction = new Transaction().add(
-    Token.createTransferInstruction(
+  try {
+    console.log("Initiating transfer for sender:", sender, "Amount:", amount);
+    
+    const senderTokenAccount = await Token.getAssociatedTokenAddress(
+      ASSOCIATED_TOKEN_PROGRAM_ID,
       TOKEN_PROGRAM_ID,
-      senderTokenAccount,
-      recipientTokenAccount,
-      sellerKeypair.publicKey,
-      [], // No other signers needed
-      amount
-    )
-  );
-
-  return sendAndConfirmTransaction(connection, transaction, [sellerKeypair]);
+      TOKEN_ADDRESS,
+      sender
+    );
+    
+    console.log("Sender token account:", senderTokenAccount.toString());
+    
+    const recipientTokenAccount = await Token.getAssociatedTokenAddress(
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+      TOKEN_PROGRAM_ID,
+      TOKEN_ADDRESS,
+      sellerKeypair.publicKey // Sending tokens from Solana wallet
+    );
+    
+    console.log("Recipient token account:", recipientTokenAccount.toString());
+    
+    const transaction = new Transaction().add(
+      Token.createTransferInstruction(
+        TOKEN_PROGRAM_ID,
+        senderTokenAccount,
+        recipientTokenAccount,
+        sellerKeypair.publicKey,
+        [], // No other signers needed
+        amount
+      )
+    );
+    
+    const signature = await sendAndConfirmTransaction(connection, transaction, [sellerKeypair]);
+    
+    return signature;
+  } catch (error) {
+    console.error("Error transferring Beast tokens:", error.message);
+    throw new Error(`Token transfer failed: ${error.message}`);
+  }
 }
 
 // Payment Route
@@ -107,35 +127,44 @@ app.post("/pay", async (req, res) => {
   
   try {
     const { sender, amount } = req.body;
+    
     if (!sender || !amount || isNaN(amount)) {
       return res.status(400).json({ error: "Invalid data: 'sender' and 'amount' are required" });
     }
+
     if (amount < MIN_PURCHASE_SOL) {
       return res.status(400).json({ error: `Amount too low: Minimum purchase is ${MIN_PURCHASE_SOL} SOL` });
     }
 
     // Step 1: Verify the SOL payment
-    const isPaid = await verifySolPayment(sender, amount);
-    if (!isPaid) {
-      return res.status(400).json({ error: "SOL payment not found or amount does not match" });
+    try {
+      const isPaid = await verifySolPayment(sender, amount);
+      if (!isPaid) {
+        return res.status(400).json({ error: "SOL payment not found or amount does not match" });
+      }
+    } catch (error) {
+      return res.status(400).json({ error: `Payment verification failed: ${error.message}` });
     }
 
     // Step 2: Calculate the Beast token amount
     const beastMemeAmount = amount * EXCHANGE_RATE; // Correct token conversion
 
     // Step 3: Transfer Beast tokens (NOT SOL)
-    const signature = await transferBeastTokens(sender, beastMemeAmount);
-
-    // Step 4: Return the successful response
-    res.json({
-      message: "Payment successful",
-      transactionId: signature,
-      amountReceived: beastMemeAmount
-    });
+    try {
+      const signature = await transferBeastTokens(sender, beastMemeAmount);
+      // Step 4: Return the successful response
+      res.json({
+        message: "Payment successful",
+        transactionId: signature,
+        amountReceived: beastMemeAmount
+      });
+    } catch (error) {
+      return res.status(500).json({ error: `Token transfer failed: ${error.message}` });
+    }
 
   } catch (error) {
     console.error("Transaction failed:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: `Transaction failed: ${error.message}` });
   }
 });
 
